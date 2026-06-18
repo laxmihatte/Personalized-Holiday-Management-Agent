@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Horizon Bound &middot; Holiday Planner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">&#9788;</span>
+        <span class="brand-name">Horizon&nbsp;Bound</span>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Plan your journey</p>
+          <h1>Where are you headed?</h1>
+          <p class="hero-sub">Describe your trip and two travel agents will draft a day-by-day plan together.</p>
+        </div>
+
+        <form id="planForm" class="planner">
+          <label for="content">Your trip</label>
+          <textarea id="content" rows="3" placeholder="e.g. Plan a 5-day trip to Paris for a couple who love food and art.">Plan a trip to Paris for 5 days.</textarea>
+          <div class="actions">
+            <button type="submit" id="runBtn">Plan my trip</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="result" class="result" hidden>
+        <div class="result-head">
+          <h2 id="resultTitle">Your journey</h2>
+          <button id="toggleRaw" class="ghost" type="button">View full conversation</button>
+        </div>
+        <div id="timeline" class="timeline"></div>
+        <pre id="raw" class="raw" hidden></pre>
+      </section>
+
+      <section id="status" class="status" hidden></section>
+    </main>
+
+    <script>
+      const form = document.getElementById('planForm');
+      const runBtn = document.getElementById('runBtn');
+      const result = document.getElementById('result');
+      const statusBox = document.getElementById('status');
+      const timeline = document.getElementById('timeline');
+      const rawBox = document.getElementById('raw');
+      const toggleRaw = document.getElementById('toggleRaw');
+
+      // Pick the longest assistant message as the "final" itinerary.
+      function pickItinerary(messages) {
+        const fromAgents = messages.filter(m => m.source && m.source !== 'User');
+        const pool = fromAgents.length ? fromAgents : messages;
+        return pool.reduce((best, m) =>
+          (m.content || '').length > (best.content || '').length ? m : best, pool[0]);
+      }
+
+      // Split markdown-ish itinerary text into day/section cards.
+      function toCards(text) {
+        const lines = text.split('\n');
+        const cards = [];
+        let current = null;
+        const headingRe = /^\s*(#{1,4}\s*|\*\*)?\s*(day\s*\d+|arrival|departure|travel tips?|tips)\b/i;
+
+        for (const line of lines) {
+          const isHeading = /^\s*#{1,4}\s+/.test(line) ||
+                            /^\s*\*\*.+\*\*\s*$/.test(line.trim()) ||
+                            headingRe.test(line);
+          const clean = line.replace(/^[#*\s]+|[*\s]+$/g, '').trim();
+          if (isHeading && clean) {
+            if (current) cards.push(current);
+            current = { title: clean, body: [] };
+          } else if (current && line.trim()) {
+            current.body.push(line.replace(/^[-*]\s*/, '').trim());
+          } else if (!current && line.trim()) {
+            current = { title: 'Overview', body: [line.trim()] };
+          }
+        }
+        if (current) cards.push(current);
+        return cards.length ? cards : [{ title: 'Your plan', body: [text] }];
+      }
+
+      function render(messages) {
+        const itinerary = pickItinerary(messages);
+        const cards = toCards(itinerary.content || '');
+        timeline.innerHTML = '';
+
+        cards.forEach((card, i) => {
+          const el = document.createElement('article');
+          el.className = 'stop';
+          el.style.setProperty('--i', i);
+          el.innerHTML = `
+            <div class="stop-num">${String(i + 1).padStart(2, '0')}</div>
+            <div class="stop-body">
+              <h3>${escapeHtml(card.title)}</h3>
+              ${card.body.map(p => `<p>${escapeHtml(p)}</p>`).join('')}
+            </div>`;
+          timeline.appendChild(el);
+        });
+
+        rawBox.textContent = messages
+          .map(m => `${m.source}:\n${m.content}`)
+          .join('\n\n----------------\n\n');
+        result.hidden = false;
+      }
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, c =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      toggleRaw.addEventListener('click', () => {
+        const show = rawBox.hidden;
+        rawBox.hidden = !show;
+        toggleRaw.textContent = show ? 'Hide full conversation' : 'View full conversation';
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const content = document.getElementById('content').value.trim();
+        if (!content) return;
+
+        runBtn.disabled = true;
+        runBtn.textContent = 'Planning\u2026';
+        result.hidden = true;
+        statusBox.hidden = false;
+        statusBox.textContent = 'Your travel agents are drafting a plan. This can take a moment\u2026';
+
+        try {
+          const res = await fetch('/plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content })
+          });
+          if (!res.ok) {
+            statusBox.textContent = 'Something went wrong: ' + (await res.text());
+            return;
+          }
+          const data = await res.json();
+          statusBox.hidden = true;
+          render(data.messages || []);
+        } catch (err) {
+          statusBox.textContent = 'Request failed: ' + err;
+        } finally {
+          runBtn.disabled = false;
+          runBtn.textContent = 'Plan my trip';
+        }
+      });
+    </script>
+  </body>
+</html>
