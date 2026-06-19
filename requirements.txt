@@ -5,4 +5,4 @@ pydantic
 fastapi
 uvicorn
 jinja2
--e .
+
