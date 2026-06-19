@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from autogen_agentchat.messages import TextMessage
-from holiday_management.teams.holiday_team import team
+from holiday_management.teams.holiday_team import build_team
 
 class PlanRequest(BaseModel):
     content: str
@@ -29,7 +29,7 @@ async def index(request: Request):
 async def plan(req: PlanRequest):
     try:
         task = TextMessage(content=req.content, source=req.source)
-        result = await team.run(task=task)
+        result = await build_team().run(task=task)
         messages = [{"source": m.source, "content": m.content} for m in result.messages]
         return {"messages": messages}
     except Exception as e:
