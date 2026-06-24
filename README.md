@@ -5,7 +5,7 @@
 > sentence, and the system **remembers each traveller's preferences** across
 > visits to personalize future plans.
 
-![CI](https://github.com/<your-username>/Personalized-Holiday-Management-Agent/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/laxmihatte/Personalized-Holiday-Management-Agent/actions/workflows/ci.yml/badge.svg)
 
 ---
 
