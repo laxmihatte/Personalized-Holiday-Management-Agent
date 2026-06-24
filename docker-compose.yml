@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # Pass your OpenAI key through from the host .env file.
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      # Persist mem0/Chroma's vector store and the log file across restarts.
+      - ./db:/app/db
+      - ./holiday_management.log:/app/holiday_management.log
+    restart: unless-stopped

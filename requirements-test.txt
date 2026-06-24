@@ -1,0 +1,10 @@
+# Lightweight deps for the hermetic test suite. The heavy LLM stack
+# (autogen, mem0) is stubbed in tests/conftest.py, so CI stays fast.
+fastapi
+jinja2
+pydantic
+python-dotenv
+pytest
+pytest-asyncio
+httpx
+ruff
